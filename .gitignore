@@ -1,0 +1,17 @@
+dist/
+site.tar.gz
+node_modules/
+.next/
+out/
+.local/
+*.tsbuildinfo
+.env*
+!.env.example
+
+.vercel/
+backups/
+*.sqlite*
+*.dump
+*.backup
+*.csv
+!tests/fixtures/*.csv

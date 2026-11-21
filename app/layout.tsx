@@ -1,0 +1,3 @@
+import type {Metadata} from 'next';import './globals.css';
+export const metadata:Metadata={metadataBase:new URL(process.env.SITE_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?'https://'+process.env.VERCEL_PROJECT_PRODUCTION_URL:'http://localhost:4173')),title:{default:'Nafahat Foundation | নাফাহাত ফাউন্ডেশন',template:'%s | Nafahat Foundation'},description:'Islamic learning, community service, and campaign-specific giving in Tangail, Bangladesh.',icons:{icon:'/logo.png'}};
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="bn" suppressHydrationWarning><body>{children}</body></html>}
