@@ -16,3 +16,43 @@ function snapshot(){const tables=Object.fromEntries(Object.keys(columns).map(tab
 test('migration preserves long Unicode content, ownership, financial totals and rejects incomplete exports',async()=>{const {pg,ex}=await fixture();try{const data=snapshot();assert.throws(()=>validateSnapshot({...data,complete:false}),/complete/);assert.throws(()=>validateSnapshot({...data,sourceCounts:{...data.sourceCounts,content:2}}),/count mismatch/);const partial=structuredClone(data);delete partial.tables.profiles[0].email;assert.throws(()=>validateSnapshot(partial),/columns/);assert.equal((await importSnapshot(ex,data)).dryRun,true);assert.equal((await databaseSummary(ex)).counts.content,0);const imported=await importSnapshot(ex,data,{apply:true});assert.equal(imported.verifiedTotalMinor,724000);assert.equal((await ex.query('SELECT payload FROM foundation.content'))[0].payload,data.tables.content[0].payload);assert.equal((await ex.query('SELECT details FROM foundation.audit'))[0].details,data.tables.audit[0].details);assert.equal((await ex.query('SELECT owner_user_id FROM foundation.donations'))[0].owner_user_id,'sb:existing-user');assert.equal((await importSnapshot(ex,data,{apply:true})).alreadyImported,true);const changed=snapshot();changed.tables.profiles[0].name='Changed';await assert.rejects(importSnapshot(ex,changed,{apply:true}),/target contains/)}finally{await pg.close()}});
 test('failed PostgreSQL import rolls back every inserted row',async()=>{const {pg,ex}=await fixture();try{const data=snapshot();data.tables.user_roles[0].user_id='missing-profile';await assert.rejects(importSnapshot(ex,data,{apply:true}));const summary=await databaseSummary(ex);assert.ok(Object.values(summary.counts).every(n=>n===0));assert.equal((await ex.query('SELECT COUNT(*) AS n FROM foundation.migration_runs'))[0].n,0)}finally{await pg.close()}});
 test('SQL binding preserves literal question marks and qualified table names',()=>{assert.equal(postgresQuery("SELECT '?' AS mark FROM donations WHERE id=? AND name='can''t ?'"),"SELECT '?' AS mark FROM foundation.donations WHERE id=$1 AND name='can''t ?'")});
+
+test('verified team signup remains unprivileged until an admin assigns Editor; revocation is immediate',async t=>{
+ const {pg,ex,env}=await fixture();
+ const production={...env,LOCAL_AUTH_TEST:false,SUPABASE_URL:'https://auth-test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'};
+ const staffId='33333333-3333-4333-8333-333333333333';
+ let confirmed=false;
+ t.mock.method(globalThis,'fetch',async(_url,options)=>{
+  const admin=options.headers.Authorization==='Bearer administrator-token';
+  return Response.json({id:admin?'44444444-4444-4444-8444-444444444444':staffId,email:admin?'admin@example.org':'editor@example.org',email_confirmed_at:admin||confirmed?'2026-11-22':null,user_metadata:{full_name:'Team Member',role:'admin'}});
+ });
+ const call=(path,method='GET',payload,admin=false)=>{const r=request(path,method,payload);r.headers.set('authorization','Bearer '+(admin?'administrator-token':'team-member-token'));return handleAPI(r,production)};
+ try{
+  assert.equal((await call('account','POST',{})).status,401);
+  assert.equal((await ex.query('SELECT COUNT(*)::int AS n FROM foundation.profiles'))[0].n,0);
+  confirmed=true;
+  assert.equal((await call('account','POST',{})).status,200);
+  assert.equal((await (await call('me')).json()).role,'user');
+  assert.equal((await call('admin')).status,403);
+  assert.equal((await call('admin/users','PATCH',{userId:'sb:'+staffId,role:'editor'})).status,403);
+  const directory=await (await call('admin/users','GET',undefined,true)).json();
+  assert.equal(directory.users.find(u=>u.user_id==='sb:'+staffId).role,'user');
+  assert.equal((await call('admin/users','PATCH',{userId:'sb:'+staffId,role:'editor'},true)).status,200);
+  const panel=await (await call('admin')).json();
+  assert.equal(panel.permissions.content,true);assert.equal(panel.permissions.users,false);assert.equal(panel.permissions.donations,false);assert.deepEqual(panel.donations,[]);
+  for(const kind of ['project','post','event']){
+   const payload={titleBn:'টিমের প্রকাশনা',titleEn:'Team publication',bodyBn:'সম্পূর্ণ বিবরণ',bodyEn:'Complete description',accepting:false};
+   assert.equal((await call('admin/content','POST',{kind,id:'team-'+kind,payload})).status,200);
+  }
+  const publicContent=await (await call('content')).json();
+  assert.ok(publicContent.projects.some(p=>p.id==='team-project'));assert.ok(publicContent.posts.some(p=>p.id==='team-post'));assert.ok(publicContent.events.some(p=>p.id==='team-event'));
+  assert.equal((await call('admin/users')).status,403);
+  assert.equal((await call('admin/users','PATCH',{userId:'sb:'+staffId,role:'admin'})).status,403);
+  assert.equal((await call('admin/users','PATCH',{userId:'sb:'+staffId,role:'user'},true)).status,200);
+  assert.equal((await call('admin')).status,403);
+  assert.equal((await call('admin/content','POST',{kind:'event',id:'revoked-editor-event',payload:{titleBn:'অনুমতি নেই',titleEn:'Not allowed'}})).status,403);
+  assert.equal((await ex.query("SELECT COUNT(*)::int AS n FROM foundation.content WHERE id='revoked-editor-event'"))[0].n,0);
+  assert.equal((await call('admin/users','PATCH',{userId:'sb:'+staffId,role:'user'},true)).status,200);
+  assert.equal((await call('admin/content','POST',{kind:'post',id:'after-revoke',payload:{titleBn:'ক',titleEn:'X'}})).status,403);
+ }finally{await pg.close()}
+});
