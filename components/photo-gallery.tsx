@@ -1,0 +1,9 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {useSite} from './context';
+export function PhotoGallery({images}:{images:string[]}){
+ const {t}=useSite();const [selected,setSelected]=useState<number|null>(null);const dialog=useRef<HTMLDialogElement>(null);
+ useEffect(()=>{if(selected!==null&&!dialog.current?.open)dialog.current?.showModal();if(selected===null&&dialog.current?.open)dialog.current.close()},[selected]);
+ if(!images.length)return null;
+ return <><div className="photo-gallery">{images.map((src,i)=><button type="button" key={src} onClick={()=>setSelected(i)} aria-label={t(`ছবি ${i+1} বড় করে দেখুন`,`Enlarge photo ${i+1}`)}><img src={src} alt={t(`কার্যক্রমের ছবি ${i+1}`,`Activity photograph ${i+1}`)} loading="lazy"/></button>)}</div><dialog className="photo-dialog" ref={dialog} onClose={()=>setSelected(null)} aria-label={t('কার্যক্রমের ছবির গ্যালারি','Activity photo gallery')} onKeyDown={e=>{if(selected===null)return;if(e.key==='ArrowRight')setSelected((selected+1)%images.length);if(e.key==='ArrowLeft')setSelected((selected+images.length-1)%images.length)}}><div className="photo-dialog-toolbar"><span>{selected!==null?`${selected+1} / ${images.length}`:''}</span><button className="button outline small" type="button" onClick={()=>setSelected(null)}>{t('বন্ধ করুন','Close')}</button></div>{selected!==null&&<img src={images[selected]} alt={t(`কার্যক্রমের ছবি ${selected+1}`,`Activity photograph ${selected+1}`)}/>}<div className="photo-dialog-toolbar"><button className="button outline small" type="button" onClick={()=>setSelected(i=>i===null?null:(i+images.length-1)%images.length)}>{t('আগের ছবি','Previous photo')}</button><button className="button outline small" type="button" onClick={()=>setSelected(i=>i===null?null:(i+1)%images.length)}>{t('পরের ছবি','Next photo')}</button></div></dialog></>
+}

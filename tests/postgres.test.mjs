@@ -56,3 +56,27 @@ test('verified team signup remains unprivileged until an admin assigns Editor; r
   assert.equal((await call('admin/content','POST',{kind:'post',id:'after-revoke',payload:{titleBn:'ক',titleEn:'X'}})).status,403);
  }finally{await pg.close()}
 });
+
+test('campaign galleries preserve 10 photos, validate dates, and restrict upload signing to content staff',async t=>{
+ const {pg,ex,env}=await fixture();try{
+  await handleAPI(request('account','POST',{},'editor'),env);
+  await handleAPI(request('account','POST',{},'finance'),env);
+  await handleAPI(request('admin/users','PATCH',{userId:'editor',role:'editor'},'admin'),env);
+  await handleAPI(request('admin/users','PATCH',{userId:'finance',role:'finance'},'admin'),env);
+  assert.equal((await handleAPI(request('admin/media/sign','POST',{},'finance'),env)).status,403);
+  assert.equal((await handleAPI(request('admin/media/sign','POST',{}),env)).status,403);
+  assert.equal((await handleAPI(request('admin/media/sign','POST',{},'editor'),env)).status,503);
+  const gallery=Array.from({length:10},(_,i)=>`https://photos.example.org/photo-${i}.webp`);
+  const p={titleBn:'ক্যাম্পেইন',titleEn:'Campaign',imageUrl:gallery[0],imageUrls:gallery,campaignStatus:'ongoing',startsAt:'2026-11-23T00:00:00Z',endsAt:'2026-11-30T00:00:00Z',accepting:false};
+  assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'gallery-campaign',payload:p},'editor'),env)).status,200);
+  const saved=(await (await handleAPI(request('content'),env)).json()).projects.find(p=>p.id==='gallery-campaign');assert.deepEqual(saved.imageUrls,gallery);assert.equal(saved.endsAt,p.endsAt);
+  for(const patch of [{imageUrls:[...gallery,'javascript:alert(1)']},{imageUrls:Array(21).fill('https://photos.example.org/x.webp')},{endsAt:p.startsAt},{campaignStatus:'ongoing',startsAt:''}])assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'bad-gallery',payload:{...p,...patch}},'editor'),env)).status,400);
+  const updated={...p,imageUrl:gallery[1],imageUrls:gallery.slice(1)};
+  assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'gallery-campaign',payload:updated},'editor'),env)).status,200);
+  const row=(await ex.query("SELECT payload FROM foundation.content WHERE id='gallery-campaign'"))[0];assert.deepEqual(JSON.parse(row.payload).imageUrls,gallery.slice(1));
+  const secret='sb_secret_test_private';t.mock.method(globalThis,'fetch',async(url)=>String(url).includes('/bucket/')?Response.json({public:true}):Response.json({url:'/object/upload/sign/campaign-media/test.webp?token=temporary-token'}));
+  const configured={...env,SUPABASE_URL:'https://media-test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:secret};
+  const config=await (await handleAPI(request('admin/media/config','GET',undefined,'editor'),configured)).json();assert.equal(config.ready,true);assert.ok(!JSON.stringify(config).includes(secret));
+  const signed=await handleAPI(request('admin/media/sign','POST',{contentId:'gallery-campaign',kind:'project',contentType:'image/webp',size:2048},'editor'),configured);assert.equal(signed.status,200);assert.equal((await signed.json()).token,'temporary-token');
+ }finally{await pg.close()}
+});

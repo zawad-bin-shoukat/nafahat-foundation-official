@@ -12,7 +12,7 @@ async function dispatch(request:Request){
  const requestOrigin=new URL(request.url);
  if(headers.get('host'))requestOrigin.host=headers.get('host')!;
  if(process.env.VERCEL==='1')requestOrigin.protocol='https:';
- const response=await handleAPI(new Request(request,{headers}),{DB:getDatabase(),REQUEST_ORIGIN:requestOrigin.origin,ADMIN_EMAILS:process.env.ADMIN_EMAILS||'',SUPABASE_URL:process.env.SUPABASE_URL||'',SUPABASE_PUBLISHABLE_KEY:process.env.SUPABASE_PUBLISHABLE_KEY||''});
+ const response=await handleAPI(new Request(request,{headers}),{DB:getDatabase(),REQUEST_ORIGIN:requestOrigin.origin,ADMIN_EMAILS:process.env.ADMIN_EMAILS||'',SUPABASE_URL:process.env.SUPABASE_URL||'',SUPABASE_PUBLISHABLE_KEY:process.env.SUPABASE_PUBLISHABLE_KEY||'',SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY||''});
  response.headers.set('Cache-Control','private, no-store');
  return response;
 }
