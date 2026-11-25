@@ -1,0 +1,15 @@
+import type {Content,Project,Entry} from './types';
+export type ProjectCategory='humanitarian'|'dawah'|'environment'|'community';
+export type ProjectStatus='ongoing'|'upcoming'|'past'|'regular';
+export type ProjectFilters={year?:string;category?:string;status?:string;search?:string};
+export const projectCategories:ProjectCategory[];
+export function projectCategory(project:Pick<Project,'id'|'kind'|'activityCategory'>):ProjectCategory;
+export function projectStatus(project:Project,now?:number):ProjectStatus;
+export function projectDate(project:Project):string;
+export function projectYears(projects:Project[]):string[];
+export function filterProjects(projects:Project[],filters?:ProjectFilters,now?:number):Project[];
+export type Impact={projectId:string;value:number;labelBn:string;labelEn:string;contextBn:string;contextEn:string;page:number;reportUrl:string;icon:string};
+export function documentedImpact(content:Content):Impact[];
+export type JourneyEntry=(Project|Entry)&{entryKind:'project'|'event';journeyDate:string;summaryBn:string;summaryEn:string};
+export function journeyEntries(content:Content,now?:number):JourneyEntry[];
+export function journeyPreview(entries:JourneyEntry[]):JourneyEntry[];
