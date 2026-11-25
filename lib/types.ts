@@ -1,5 +1,5 @@
 export type Language='bn'|'en';
-export type MediaFields={sourceUrl?:string;imageUrl?:string;imageUrls?:string[];publishedAt?:string};
+export type MediaFields={reportUrl?:string;reportPages?:number[];sourceUrl?:string;imageUrl?:string;imageUrls?:string[];publishedAt?:string};
 export type FAQ={questionBn:string;questionEn:string;answerBn:string;answerEn:string};
 export type Expense={labelBn:string;labelEn:string;amount:number};
 export type Completion={date:string;outcomesBn:string;outcomesEn:string;expenses:Expense[];websiteTotal?:number;offlineTotal?:number;offlineNoteBn?:string;offlineNoteEn?:string;approvedAt?:string};
