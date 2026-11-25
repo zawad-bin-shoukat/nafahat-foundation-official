@@ -4,3 +4,5 @@ export function campaignPhase(p:Schedule,now?:number):'ended'|'unscheduled'|'upc
 export function remainingTime(end:string,now:number):number[];
 export function toDhakaInput(value?:string):string;
 export function fromDhakaInput(value:string):string;
+
+export function withCampaignDefaults<T extends Schedule & {id:string;campaignScheduleSet?:boolean}>(p:T):T & Schedule;

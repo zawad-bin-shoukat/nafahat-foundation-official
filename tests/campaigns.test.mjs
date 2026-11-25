@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateCampaignSchedule,campaignPhase,remainingTime,toDhakaInput,fromDhakaInput} from '../lib/campaigns.js';
+import {validateCampaignSchedule,campaignPhase,remainingTime,toDhakaInput,fromDhakaInput,withCampaignDefaults} from '../lib/campaigns.js';
 import {signMedia,validateMediaRequest} from '../server/media.js';
 const schedule={campaignStatus:'ongoing',startsAt:'2026-11-23T00:00:00Z',endsAt:'2026-11-25T00:00:00Z'};
 test('campaign countdown respects exact start and end boundaries and Bangladesh time',()=>{
@@ -25,3 +25,18 @@ test('first authorized upload creates only the configured public image bucket wi
  });
  const result=await signMedia({SUPABASE_URL:'https://media-test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_test_key'},{contentId:'winter-relief',kind:'project',contentType:'image/webp',size:4096});assert.equal(result.token,'upload-token');assert.equal(writes.length,1);assert.equal(writes[0].id,'campaign-media');assert.equal(writes[0].public,true);assert.deepEqual(writes[0].allowed_mime_types,['image/webp']);assert.equal(Number(writes[0].file_size_limit),2*1024*1024);
 });
+
+ test('legacy winter content gains the December deadline without losing images or overriding explicit settings',()=>{
+  const legacy={id:'winter-relief',titleEn:'Our updated winter campaign',imageUrl:'https://photos.example.org/cover.webp',imageUrls:['https://photos.example.org/cover.webp','https://photos.example.org/other.webp']};
+  const p=withCampaignDefaults(legacy);
+  assert.equal(p.endsAt,'2026-12-15T17:59:59.000Z');assert.equal(p.titleEn,legacy.titleEn);assert.deepEqual(p.imageUrls,legacy.imageUrls);assert.equal(campaignPhase(p,Date.parse('2026-11-25T00:00:00Z')),'ongoing');assert.equal(toDhakaInput(p.endsAt),'2026-12-15T23:59');assert.equal(campaignPhase(p,Date.parse(p.endsAt)),'ended');
+  const disabled={...legacy,campaignStatus:'',campaignScheduleSet:true,endsAt:''};assert.deepEqual(withCampaignDefaults(disabled),disabled);assert.equal(campaignPhase(disabled),'unscheduled');
+  const completed={...legacy,campaignStatus:'completed'};assert.deepEqual(withCampaignDefaults(completed),completed);
+  const edited={...legacy,campaignStatus:'ongoing',endsAt:'2026-12-20T12:00:00Z'};assert.deepEqual(withCampaignDefaults(edited),edited);
+  assert.deepEqual(withCampaignDefaults({id:'another-project'}),{id:'another-project'});
+ });
+ test('an ongoing campaign can start immediately with only an end date; planned campaigns still require both',()=>{
+  assert.equal(validateCampaignSchedule({campaignStatus:'ongoing',endsAt:schedule.endsAt}),null);
+  assert.ok(validateCampaignSchedule({campaignStatus:'planned',endsAt:schedule.endsAt}));
+  assert.ok(validateCampaignSchedule({campaignStatus:'ongoing',endsAt:'invalid'}));
+ });

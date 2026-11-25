@@ -1,6 +1,6 @@
 export type Language='bn'|'en';
 export type MediaFields={sourceUrl?:string;imageUrl?:string;imageUrls?:string[];publishedAt?:string};
-export type Project=MediaFields&{id:string;kind:string;titleBn:string;titleEn:string;labelBn:string;labelEn:string;summaryBn:string;summaryEn:string;bodyBn:string;bodyEn:string;accepting:boolean;methods:string[];reference:string;instructionsBn:string;instructionsEn:string;campaignStatus?:'planned'|'ongoing'|'completed';startsAt?:string;endsAt?:string;verifiedTotal?:number};
+export type Project=MediaFields&{id:string;kind:string;titleBn:string;titleEn:string;labelBn:string;labelEn:string;summaryBn:string;summaryEn:string;bodyBn:string;bodyEn:string;accepting:boolean;methods:string[];reference:string;instructionsBn:string;instructionsEn:string;campaignScheduleSet?:boolean;campaignStatus?:'planned'|'ongoing'|'completed';startsAt?:string;endsAt?:string;verifiedTotal?:number};
 export type Post=MediaFields&{id:string;titleBn:string;titleEn:string;categoryBn:string;categoryEn:string;summaryBn:string;summaryEn:string;bodyBn:string;bodyEn:string};
 export type Entry=MediaFields&{id:string;titleBn:string;titleEn:string;bodyBn:string;bodyEn:string;date?:string;status?:'upcoming'|'past'|'notice';projectId?:string};
 export type Content={projects:Project[];posts:Post[];events:Entry[];reports:Entry[];updates:Entry[]};

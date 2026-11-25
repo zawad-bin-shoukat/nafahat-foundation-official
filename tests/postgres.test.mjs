@@ -69,14 +69,26 @@ test('campaign galleries preserve 10 photos, validate dates, and restrict upload
   const gallery=Array.from({length:10},(_,i)=>`https://photos.example.org/photo-${i}.webp`);
   const p={titleBn:'ক্যাম্পেইন',titleEn:'Campaign',imageUrl:gallery[0],imageUrls:gallery,campaignStatus:'ongoing',startsAt:'2026-11-23T00:00:00Z',endsAt:'2026-11-30T00:00:00Z',accepting:false};
   assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'gallery-campaign',payload:p},'editor'),env)).status,200);
-  const saved=(await (await handleAPI(request('content'),env)).json()).projects.find(p=>p.id==='gallery-campaign');assert.deepEqual(saved.imageUrls,gallery);assert.equal(saved.endsAt,p.endsAt);
-  for(const patch of [{imageUrls:[...gallery,'javascript:alert(1)']},{imageUrls:Array(21).fill('https://photos.example.org/x.webp')},{endsAt:p.startsAt},{campaignStatus:'ongoing',startsAt:''}])assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'bad-gallery',payload:{...p,...patch}},'editor'),env)).status,400);
+  const saved=(await (await handleAPI(request('content'),env)).json()).projects.find(p=>p.id==='gallery-campaign');assert.deepEqual(saved.imageUrls,gallery.slice(1));assert.equal(saved.endsAt,p.endsAt);
+  for(const patch of [{imageUrls:[...gallery,'javascript:alert(1)']},{imageUrls:Array(21).fill('https://photos.example.org/x.webp')},{endsAt:p.startsAt},{campaignStatus:'planned',startsAt:''}])assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'bad-gallery',payload:{...p,...patch}},'editor'),env)).status,400);
   const updated={...p,imageUrl:gallery[1],imageUrls:gallery.slice(1)};
   assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'gallery-campaign',payload:updated},'editor'),env)).status,200);
-  const row=(await ex.query("SELECT payload FROM foundation.content WHERE id='gallery-campaign'"))[0];assert.deepEqual(JSON.parse(row.payload).imageUrls,gallery.slice(1));
+  const row=(await ex.query("SELECT payload FROM foundation.content WHERE id='gallery-campaign'"))[0];assert.deepEqual(JSON.parse(row.payload).imageUrls,gallery.slice(2));
   const secret='sb_secret_test_private';t.mock.method(globalThis,'fetch',async(url)=>String(url).includes('/bucket/')?Response.json({public:true}):Response.json({url:'/object/upload/sign/campaign-media/test.webp?token=temporary-token'}));
   const configured={...env,SUPABASE_URL:'https://media-test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:secret};
   const config=await (await handleAPI(request('admin/media/config','GET',undefined,'editor'),configured)).json();assert.equal(config.ready,true);assert.ok(!JSON.stringify(config).includes(secret));
   const signed=await handleAPI(request('admin/media/sign','POST',{contentId:'gallery-campaign',kind:'project',contentType:'image/webp',size:2048},'editor'),configured);assert.equal(signed.status,200);assert.equal((await signed.json()).token,'temporary-token');
+ }finally{await pg.close()}
+});
+
+test('legacy saved winter content gets a working deadline and explicitly disabling it remains disabled',async()=>{
+ const {pg,ex,env}=await fixture();try{
+  const cover='https://photos.example.org/main.webp',gallery=Array.from({length:10},(_,i)=>`https://photos.example.org/gallery-${i}.webp`);
+  const legacy={...seed.projects.find(p=>p.id==='winter-relief'),titleEn:'Team-edited winter relief',bodyEn:'Existing team description',imageUrl:cover,imageUrls:[cover,...gallery]};delete legacy.campaignStatus;delete legacy.endsAt;delete legacy.startsAt;
+  await ex.query('INSERT INTO foundation.content (kind,id,payload,updated_at) VALUES ($1,$2,$3,$4)',['project','winter-relief',JSON.stringify(legacy),new Date().toISOString()]);
+  const p=(await (await handleAPI(request('content'),env)).json()).projects.find(p=>p.id==='winter-relief');
+  assert.equal(p.endsAt,'2026-12-15T17:59:59.000Z');assert.equal(p.campaignStatus,'ongoing');assert.equal(p.titleEn,legacy.titleEn);assert.equal(p.bodyEn,legacy.bodyEn);assert.equal(p.imageUrl,cover);assert.deepEqual(p.imageUrls,legacy.imageUrls);
+  const disabled={...p,campaignStatus:'',startsAt:'',endsAt:''};assert.equal((await handleAPI(request('admin/content','POST',{kind:'project',id:'winter-relief',payload:disabled},'admin'),env)).status,200);
+  const saved=(await (await handleAPI(request('content'),env)).json()).projects.find(p=>p.id==='winter-relief');assert.equal(saved.campaignStatus,'');assert.equal(saved.endsAt,'');assert.equal(saved.campaignScheduleSet,true);assert.equal(saved.imageUrl,cover);assert.deepEqual(saved.imageUrls,gallery);
  }finally{await pg.close()}
 });
