@@ -1,0 +1,10 @@
+import type {Entry,Project,Completion} from './types';
+export type ReportFilters={year?:string;project?:string;type?:string;search?:string};
+export function reportYears(report:Entry):string[];
+export function reportType(report:Entry):'annual'|'financial'|'activity';
+export function availableReportYears(reports:Entry[]):string[];
+export function filterReports(reports:Entry[],projects:Project[],filters?:ReportFilters):Entry[];
+export function completionTotals(completion:Completion):{website:number|null;offline:number|null;received:number|null;expenses:number|null;balance:number|null};
+export function websiteRecordsReady(projects:Project[]):boolean;
+export function websiteDonationTotal(projects:Project[]):number;
+export function buildReportHTML(report:Entry,project?:Project,lang?:string):string;
